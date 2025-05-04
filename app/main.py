@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.database import Base, engine
 from app.facturation.routes import router as facturation_router
+from app.facturation.routes import router as facturation_router
 from app.middlewares import setup_middlewares
 from app.exceptions import setup_exception_handlers
 import threading
@@ -19,6 +20,7 @@ setup_middlewares(app)
 setup_exception_handlers(app)
 
 # **Registrar Rutas**
+app.include_router(facturation_router)
 app.include_router(facturation_router)
 
 Base.metadata.create_all(bind=engine)
