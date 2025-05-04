@@ -3,12 +3,11 @@ from app.database import Base, engine
 from app.facturation.routes import router as facturation_router
 from app.middlewares import setup_middlewares
 from app.exceptions import setup_exception_handlers
-import threading
 
 # **Configurar FastAPI**
 app = FastAPI( 
-    title="Distrito de Riego API Gateway - Mantenimiento",
-    description="API Gateway para Mantenimiento en el sistema de riego",
+    title="Distrito de Riego API Gateway - Facturación y Consumo",
+    description="API Gateway para Facturación y Consumo en el sistema de riego",
     version="1.0.0"
 )
 
