@@ -266,7 +266,7 @@ class FacturationService:
                 if not lote:
                     raise HTTPException(400, "Lote no encontrado")
                 # lote.properties es relación PropertyLot -> Property
-                predio_ids = [pl.property_id for pl in lote.properties]
+                predio_ids = [pl.id for pl in lote.properties]
                 if payload.predio_id not in predio_ids:
                     raise HTTPException(400, "El lote no está asociado al predio indicado")
 
@@ -320,7 +320,7 @@ class FacturationService:
                         detail="predio_id y lote_id son obligatorios cuando scope es 'Específico'"
                     )
                 lote = self.db.get(Lot, lote_id)
-                if not lote or lote.property_id != predio:
+                if not lote or Lot.id != predio:
                     raise HTTPException(
                         status_code=400,
                         detail="El lote no pertenece al predio indicado"
