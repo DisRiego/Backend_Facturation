@@ -9,6 +9,7 @@ load_dotenv()
 
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+print("URL de base de datos leída:", repr(DATABASE_URL))  # repr muestra caracteres especiales
 
 # Configurar la base de datos
 engine = create_engine(DATABASE_URL)
