@@ -121,10 +121,11 @@ class BillingService:
                 Invoice.total_amount.label("amount_due"),
                 Invoice.status.label("invoice_status"),
                 Invoice.dian_status.label("dian_status"),
+                Invoice.pdf_url.label("pdf_url")
             )
             .select_from(Invoice)
             .outerjoin(Lot, Invoice.lot_id == Lot.id)
-            .outerjoin(PI, Lot.payment_interval == PI.id)
+            .outerjoin(PI, Lot.payment_interval_id == PI.id)
             .outerjoin(PropertyLot, PropertyLot.lot_id == Lot.id)
             .outerjoin(
                 PropertyUser,
@@ -204,7 +205,7 @@ class BillingService:
                 "nombre":         concept.nombre,
                 "descripcion":    concept.descripcion,
                 "valor_unitario": float(concept.valor),
-                "total_concepto": float(total_volume * concept.valor)
+                "total_concepto": float(total_volume) * float(concept.valor)
             })
 
         return {
@@ -213,6 +214,7 @@ class BillingService:
                 "reference_code":     invoice.reference_code,
                 "issuance_date":      invoice.issuance_date,
                 "expiration_date":    invoice.expiration_date,
+                "pdf_url":            invoice.pdf_url,
                 **period,
                 "total_amount":       float(invoice.total_amount),
                 "client_name":        getattr(invoice, "client_name", None),
@@ -339,6 +341,11 @@ class BillingService:
         """
         U = aliased(User)
 
+        payment_status_map = {
+            4: "Aprobado",
+            6: "Rechazado"
+        }
+
         q = (
             self.db.query(
                 Invoice.reference_code.label("invoice_number"),
@@ -348,15 +355,23 @@ class BillingService:
                 Payment.payment_method.label("payment_method"),
                 Payment.amount.label("paid_amount"),
                 Payment.status.label("payment_status_id"),   # repetimos el código
-                Payment.status.label("payment_status_name")  # y el nombre
-            )
+                # Payment.status.label("payment_status_name")  # y el nombre
+            )   
             .select_from(Payment)
             .join(Invoice, Payment.invoice_id == Invoice.id)
             .outerjoin(U, Invoice.user_id == U.id)
             .order_by(Payment.paid_at.desc())
         )
 
-        return [row._asdict() for row in q.all()]
+        # Convertir a diccionario y agregar el nombre del estado
+        result = []
+        for row in q.all():
+            row_dict = row._asdict()
+            status_id = int(row_dict["payment_status_id"])
+            row_dict["payment_status_name"] = payment_status_map.get(status_id, "Desconocido")
+            result.append(row_dict)
+
+        return result
 
 
     def get_payment_detail(self, payment_id: int):
@@ -374,6 +389,11 @@ class BillingService:
         pago: Payment = self.db.query(Payment).filter(Payment.id == payment_id).first()
         if not pago:
             raise HTTPException(status_code=404, detail="Pago no encontrado")
+        
+        payment_status_map = {
+            4: "Aprobado",
+            6: "Rechazado"
+        }
 
         # Nombre del pagador vía invoice.user_id
         payer_name = None
@@ -388,7 +408,7 @@ class BillingService:
             "payer_name":           payer_name,
             "transaction_amount":   float(pago.amount),
             "payment_status_id":    pago.status,  # texto como “id”
-            "payment_status_name":  pago.status,  # mismo texto como “nombre”
+            "payment_status_name":  payment_status_map.get(int(pago.status), "Desconocido"),  # mismo texto como “nombre”
             "payment_date":         pago.paid_at,
             "reference_code":       pago.reference_code,
             "payer_email":          pago.payer_email,

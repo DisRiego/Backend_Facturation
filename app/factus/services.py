@@ -1,5 +1,7 @@
 import json
 import os
+from urllib.parse import urlparse
+import uuid
 from fastapi.responses import JSONResponse
 import httpx
 import base64
@@ -13,6 +15,7 @@ from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.payu.models import Invoice, Payment
+from app.firebase_config import storage
 
 class FactusService:
     def __init__(self, db: Session):
@@ -196,15 +199,15 @@ class FactusService:
             file_name = respuesta["data"]["file_name"]
 
             # Guardar XML
-            ruta_xml = self.guardar_xml(xml_b64, file_name)
+            ruta_xml = self.guardar_xml_en_firebase(xml_b64, file_name)
 
             respuesta = response_pdf.json()
             file_name = respuesta["data"]["file_name"]
-            ruta_pdf = self.guardar_pdf(response_pdf.content, file_name)
+            ruta_pdf = self.guardar_pdf_en_firebase(response_pdf.content, file_name)
 
             # Guardar en la base de datos
-            invoice.pdf_url = ruta_xml
-            invoice.xml_url = ruta_pdf
+            invoice.pdf_url = ruta_pdf
+            invoice.xml_url = ruta_xml
             self.db.commit()
             self.db.refresh(invoice)
 
@@ -309,36 +312,104 @@ class FactusService:
             smtp.send_message(msg)
 
         print("Correo enviado correctamente.")
-
     
-    def send_invoice_zip_by_email(self, recipient: str, subject: str, body: str, pdf_path: str, xml_path: str):
+    @staticmethod
+    def extract_blob_path_from_url(url: str) -> str:
+        """
+        Extrae el blob path desde una URL pública que contenga '/facturas/...'.
+        """
+        parsed = urlparse(url)
+        path = parsed.path  # incluye leading slash
+        facturas_index = path.find("/facturas/")
+        if facturas_index == -1:
+            raise ValueError("No se encontró el prefijo '/facturas/' en la URL.")
+        
+        return path[facturas_index + 1:]  # quitamos el slash inicial
+
+    def send_invoice_zip_by_email(self, recipient: str, subject: str, html_body: str, pdf_url: str, xml_url: str):
         sender = os.getenv("SMTP_EMAIL")
         password = os.getenv("SMTP_PASSWORD")
 
+        # Preparar el mensaje
         msg = EmailMessage()
         msg["From"] = sender
         msg["To"] = recipient
         msg["Subject"] = subject
-        # msg.set_content(body)
         msg.set_content("Este correo contiene una factura electrónica adjunta.")
-        msg.add_alternative(body, subtype="html")
+        msg.add_alternative(html_body, subtype="html")
+
+        # Extraer blob paths reales desde las URLs públicas
+        pdf_blob_path = self.extract_blob_path_from_url(pdf_url)
+        xml_blob_path = self.extract_blob_path_from_url(xml_url)
+
+        # Descargar archivos desde Firebase
+        bucket = storage.bucket()
+        pdf_blob = bucket.blob(pdf_blob_path)
+        xml_blob = bucket.blob(xml_blob_path)
+
+        pdf_bytes = pdf_blob.download_as_bytes()
+        xml_bytes = xml_blob.download_as_bytes()
 
         # Crear archivo ZIP en memoria
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            zip_file.write(pdf_path, arcname=os.path.basename(pdf_path))
-            zip_file.write(xml_path, arcname=os.path.basename(xml_path))
+            zip_file.writestr(os.path.basename(pdf_blob_path), pdf_bytes)
+            zip_file.writestr(os.path.basename(xml_blob_path), xml_bytes)
         zip_buffer.seek(0)
 
-        # Adjuntar ZIP
-        zip_filename = f"{os.path.splitext(os.path.basename(pdf_path))[0]}.zip"
+        # Adjuntar ZIP al mensaje
+        zip_filename = f"{os.path.splitext(os.path.basename(pdf_blob_path))[0]}.zip"
         msg.add_attachment(zip_buffer.read(), maintype="application", subtype="zip", filename=zip_filename)
 
-        # Enviar correo
+        # Enviar el correo
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(sender, password)
             smtp.send_message(msg)
 
         print("ZIP email sent successfully.")
+
+    @staticmethod
+    def guardar_pdf_en_firebase(response_pdf_content: bytes, unique_filename: str, directory: str = "facturas") -> str:
+        # Decodificar el contenido JSON
+        response_data = json.loads(response_pdf_content.decode("utf-8"))
+        pdf_b64 = response_data["data"]["pdf_base_64_encoded"]
+        pdf_bytes = base64.b64decode(pdf_b64)
+
+        # Generar nombre único
+        unique_filename = f"{unique_filename}/{unique_filename}.pdf"
+
+        # Crear el blob dentro del bucket
+        bucket = storage.bucket()
+        blob = bucket.blob(f"{directory}/{unique_filename}")
+
+        # Subir a Firebase Storage
+        blob.upload_from_string(pdf_bytes, content_type="application/pdf")
+
+        # Hacerlo público
+        blob.make_public()
+
+        # Retornar URL pública
+        return blob.public_url
+    
+    @staticmethod
+    def guardar_xml_en_firebase(xml_base_64: str, unique_filename: str, directory: str = "facturas") -> str:
+        # Decodificar el XML desde base64
+        xml_bytes = base64.b64decode(xml_base_64)
+
+        # Generar nombre único
+        unique_filename = f"{unique_filename}/{unique_filename}.xml"
+
+        # Crear el blob en Firebase Storage
+        bucket = storage.bucket()
+        blob = bucket.blob(f"{directory}/{unique_filename}")
+
+        # Subir el contenido al bucket
+        blob.upload_from_string(xml_bytes, content_type="application/xml")
+
+        # Hacer el archivo público
+        blob.make_public()
+
+        # Retornar la URL pública
+        return blob.public_url
 
 
