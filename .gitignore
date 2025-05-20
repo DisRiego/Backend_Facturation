@@ -13,3 +13,4 @@ uploads
 /.env
 .env
 
+config/firebase_riego.json
