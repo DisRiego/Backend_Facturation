@@ -20,6 +20,7 @@ def client():
     with TestClient(app) as c:
         yield c
 
+
 def test_get_payment_detail_success(db_session, client):
     """
     Prueba que el endpoint /billing/payments/{payment_id} devuelva
