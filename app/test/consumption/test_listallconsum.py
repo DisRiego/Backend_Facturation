@@ -45,7 +45,7 @@ def test_list_all_consumptions(db_session: Session):
             latitude=0.0,
             extension=1.0,
             real_estate_registration_number=123456,
-            State=3
+            State=3  # Cambiado State
         )
         db_session.add(property_obj)
         db_session.commit()
@@ -61,8 +61,8 @@ def test_list_all_consumptions(db_session: Session):
             latitude=0.0,
             extension=1.0,
             real_estate_registration_number=654321,
-            payment_interval=payment_interval.id,
-            State=5
+            payment_interval_id=payment_interval.id,  # Cambiado payment_interval a payment_interval_id
+            state_id=5  # Cambiado State a state_id
         )
         db_session.add(lot)
         db_session.commit()

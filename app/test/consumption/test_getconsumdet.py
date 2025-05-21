@@ -51,8 +51,8 @@ def test_get_consumption_detail(db_session: Session):
         latitude=2.22,
         extension=5.0,
         real_estate_registration_number=reg_number_lot,
-        payment_interval=1,
-        State=5
+        payment_interval_id=1,
+        state_id=5
     )
     db_session.add(lot)
     db_session.commit()
