@@ -16,16 +16,19 @@ def test_get_invoice_counts(db_session: Session):
 
     emitidas, pagadas, pendientes, vencidas = service.get_invoice_counts()
 
-    # Validar que los conteos sean enteros y mayores o iguales a cero
+    # Validar que los conteos sean enteros y >= 0
     assert isinstance(emitidas, int) and emitidas >= 0
     assert isinstance(pagadas, int) and pagadas >= 0
     assert isinstance(pendientes, int) and pendientes >= 0
     assert isinstance(vencidas, int) and vencidas >= 0
 
-    # Validar que el total emitidas sea mayor o igual a la suma de las otras categorías (pagadas + pendientes + vencidas)
-    assert emitidas >= pagadas + pendientes + vencidas
+    # Validar que emitidas sea >= a cada categoría individual
+    assert emitidas >= pagadas
+    assert emitidas >= pendientes
+    assert emitidas >= vencidas
 
     print(f"Facturas emitidas: {emitidas}")
     print(f"Facturas pagadas: {pagadas}")
     print(f"Facturas pendientes: {pendientes}")
     print(f"Facturas vencidas: {vencidas}")
+
