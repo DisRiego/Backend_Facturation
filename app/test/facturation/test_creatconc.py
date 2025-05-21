@@ -51,8 +51,8 @@ def setup_property_and_lot(dbsession: Session):
         latitude=1.0,
         extension=5.0,
         real_estate_registration_number=registration_number,
-        payment_interval=1,
-        State=5
+        payment_interval_id=1,
+        state_id=5
     )
     dbsession.add(prop)
     dbsession.add(lot)

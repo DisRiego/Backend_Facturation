@@ -44,8 +44,8 @@ def setup_concept_and_related(dbsession: Session):
         latitude=0,
         extension=50,
         real_estate_registration_number=registration_number,
-        payment_interval=1,
-        State=5
+        payment_interval_id=1,
+        state_id=5
     )
 
     dbsession.add(predio)
@@ -156,8 +156,8 @@ def test_update_concept_lote_not_belong_to_predio(dbsession: Session, setup_conc
         latitude=0,
         extension=20,
         real_estate_registration_number=1112223,
-        payment_interval=1,
-        State=5
+        payment_interval_id=1,
+        state_id=5
     )
     dbsession.add(nuevo_lote)
     dbsession.commit()

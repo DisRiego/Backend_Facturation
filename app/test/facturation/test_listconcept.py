@@ -42,8 +42,8 @@ def setup_concept_with_relations(dbsession: Session):
         latitude=0,
         extension=50,
         real_estate_registration_number=real_estate_reg_num,
-        payment_interval=1,
-        State=5
+        payment_interval_id=1,
+        state_id=5
     )
     dbsession.add(predio)
     dbsession.add(lote)

@@ -43,8 +43,8 @@ def concept_fixture(dbsession: Session):
         latitude=1.0,
         extension=3.0,
         real_estate_registration_number=reg_number,
-        payment_interval=1,
-        State=5
+        payment_interval_id=1,
+        state_id=5
     )
     dbsession.add(predio)
     dbsession.add(lote)
