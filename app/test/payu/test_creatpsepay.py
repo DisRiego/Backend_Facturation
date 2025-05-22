@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.database import SessionLocal
-from app.facturation.models import Property, Lot, PropertyLot, PropertyUser
+from app.facturation.models import Property, Lot, PropertyLot, PropertyUser, PaymentInterval
 from app.payu.models import Invoice
 from sqlalchemy.orm import Session
 
@@ -33,14 +33,19 @@ def create_property(db: Session) -> Property:
 
 def create_lot(db: Session) -> Lot:
     real_estate_number = random.randint(100000, 999999)
+    # Obtener objeto PaymentInterval para asignar relación correctamente
+    payment_interval = db.query(PaymentInterval).filter(PaymentInterval.id == 1).first()
+    if not payment_interval:
+        raise Exception("No se encontró PaymentInterval con id=1")
+
     lot = Lot(
         name="Lote Test",
         longitude=-75.3,
         latitude=2.9,
         extension=1000,
         real_estate_registration_number=real_estate_number,
-        payment_interval=1,
-        State=5
+        payment_interval=payment_interval,  # asignar objeto, no id
+        state_id=5
     )
     db.add(lot)
     db.commit()
@@ -90,7 +95,7 @@ def test_create_pse_payment_success(db_session):
     prop = create_property(db_session)
     lot = create_lot(db_session)
     create_property_lot(db_session, prop.id, lot.id)
-    create_property_user(db_session, prop.id, user_id)  # <--- Asociar usuario al predio
+    create_property_user(db_session, prop.id, user_id)
 
     invoice = create_invoice(db_session, lot.id, user_id)
 
@@ -107,7 +112,6 @@ def test_create_pse_payment_success(db_session):
     payu_service = PayUService(db_session)
     response = payu_service.create_pse_payment(payment_data)
 
-    # Imprime respuesta en caso de error para depuración
     if response.status_code != 200:
         print(response.body.decode())
 
