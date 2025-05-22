@@ -1,13 +1,17 @@
 import pytest
+import random
+import string
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.exc import ObjectDeletedError
-from datetime import datetime, timedelta
+import datetime as dt
+
 from app.main import app
 from app.database import SessionLocal
 from app.payu.models import Invoice
-from app.facturation.models import User, Lot, Property, PropertyLot, PropertyUser
-from app.facturation.services import InvoiceService
+from app.facturation.models import User, Property, Lot, PropertyLot, PropertyUser
+
+def random_string(length=8):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 @pytest.fixture(scope="module")
 def sessionlocal():
@@ -17,108 +21,133 @@ def sessionlocal():
     finally:
         db.close()
 
-@pytest.fixture(scope="function")
-def db_session(sessionlocal: Session):
-    yield sessionlocal
-    sessionlocal.rollback()
-
-@pytest.fixture
-def invoice_service(db_session: Session):
-    return InvoiceService(db_session)
-
 @pytest.fixture(scope="module")
 def client():
     with TestClient(app) as c:
         yield c
-        
-@pytest.fixture
-def test_user(db_session: Session):
-    user = db_session.query(User).filter(User.document_number == "123456789").first()
-    if not user:
-        user = User(
-            name="Test",
-            first_last_name="User",
-            second_last_name="Uno",
-            document_number="123456789"
-        )
-        db_session.add(user)
-        db_session.commit()
-        db_session.refresh(user)
-    yield user
-    # Limpieza segura
-    try:
-        if user.document_number == "123456789":
-            db_session.delete(user)
-            db_session.commit()
-    except ObjectDeletedError:
-        db_session.rollback()
 
-@pytest.fixture
-def test_property_and_lot(db_session: Session, test_user: User):
-    property = Property(
-        name="Test Property",
+import random
+import string
+import datetime as dt
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+from app.facturation.models import User, Property, Lot, PropertyLot, PropertyUser
+from app.payu.models import Invoice
+from app.main import app
+
+def random_string(length=8):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+
+def random_number_string(length=9):
+    return ''.join(random.choices(string.digits, k=length))
+
+@pytest.fixture(scope="function")
+def test_user(sessionlocal: Session):
+    # Buscar usuario de prueba para evitar duplicados
+    user = sessionlocal.query(User).filter(User.email == "testuser@example.com").first()
+    if user:
+        yield user
+        return
+
+    user = User(
+        name="Test",
+        first_last_name="User",
+        second_last_name="Example",
+        document_number=random_number_string(9),
+        email="testuser@example.com"
+    )
+    sessionlocal.add(user)
+    sessionlocal.commit()
+    sessionlocal.refresh(user)
+    yield user
+    # Limpieza - eliminar usuario solo si fue creado
+    try:
+        sessionlocal.delete(user)
+        sessionlocal.commit()
+    except Exception:
+        sessionlocal.rollback()
+
+@pytest.fixture(scope="function")
+def test_property_and_lot(sessionlocal: Session, test_user: User):
+    # Crear propiedad con número de registro inmobiliario aleatorio
+    prop = Property(
+        name=f"Test Property {random_string(4)}",
         longitude=10.0,
         latitude=10.0,
         extension=100.0,
-        real_estate_registration_number=12345,
+        real_estate_registration_number=int(random_number_string(6)),
         State=3
     )
-    db_session.add(property)
-    db_session.commit()
-    db_session.refresh(property)
+    sessionlocal.add(prop)
+    sessionlocal.commit()
+    sessionlocal.refresh(prop)
 
+    # Crear lote con número de registro inmobiliario aleatorio
     lot = Lot(
-        name="Test Lot",
+        name=f"Test Lot {random_string(4)}",
         longitude=10.0,
         latitude=10.0,
         extension=50.0,
-        real_estate_registration_number=54321,
+        real_estate_registration_number=int(random_number_string(6)),
         payment_interval_id=1,
         state_id=5,
         type_crop_id=1
     )
-    db_session.add(lot)
-    db_session.commit()
-    db_session.refresh(lot)
+    sessionlocal.add(lot)
+    sessionlocal.commit()
+    sessionlocal.refresh(lot)
 
-    prop_lot = PropertyLot(property_id=property.id, lot_id=lot.id)
-    db_session.add(prop_lot)
+    # Relacionar propiedad y lote
+    prop_lot = PropertyLot(property_id=prop.id, lot_id=lot.id)
+    sessionlocal.add(prop_lot)
 
-    prop_user = PropertyUser(property_id=property.id, user_id=test_user.id)
-    db_session.add(prop_user)
-    db_session.commit()
+    # Relacionar propiedad y usuario
+    prop_user = PropertyUser(property_id=prop.id, user_id=test_user.id)
+    sessionlocal.add(prop_user)
+    sessionlocal.commit()
 
     yield lot
 
-    # Limpieza segura
+    # Limpieza
     try:
-        db_session.delete(prop_user)
-        db_session.delete(prop_lot)
-        db_session.delete(lot)
-        db_session.delete(property)
-        db_session.commit()
-    except ObjectDeletedError:
-        db_session.rollback()
+        sessionlocal.delete(prop_user)
+        sessionlocal.delete(prop_lot)
+        sessionlocal.delete(lot)
+        sessionlocal.delete(prop)
+        sessionlocal.commit()
+    except Exception:
+        sessionlocal.rollback()
 
-def test_create_invoice_success(db_session: Session, invoice_service: InvoiceService, test_property_and_lot: Lot):
-    # Limpia facturas previas para evitar error 400
-    invoices_exist = db_session.query(Invoice).filter(Invoice.lot_id == test_property_and_lot.id).all()
-    for inv in invoices_exist:
-        db_session.delete(inv)
-    db_session.commit()
+@pytest.fixture(scope="function")
+def client():
+    with TestClient(app) as c:
+        yield c
 
-    payment_data = {
-        "lot_id": test_property_and_lot.id
-    }
+def test_create_invoice_success(client: TestClient, sessionlocal: Session, test_property_and_lot: Lot):
+    # Limpieza: borrar facturas con reference_code del día para evitar duplicados
+    today = dt.datetime.utcnow().strftime('%Y%m%d')
+    prefix = f"DISR-{today}-"
+    facturas = sessionlocal.query(Invoice).filter(Invoice.reference_code.like(f"{prefix}%")).all()
+    for f in facturas:
+        sessionlocal.delete(f)
+    sessionlocal.commit()
 
-    response = invoice_service.create_invoice(payment_data=payment_data)
+    # Ejecutar el endpoint
+    response = client.post("/facturations/create", json={"lot_id": test_property_and_lot.id})
 
-    assert response.status_code == 200
+    if response.status_code != 200 and response.status_code != 201:
+        print("❌ Respuesta del servidor:", response.text)
 
-    invoice = db_session.query(Invoice).filter(Invoice.lot_id == test_property_and_lot.id).order_by(Invoice.id.desc()).first()
+    assert response.status_code in (200, 201)
+    data = response.json()
+    assert data["success"] is True
+    assert "data" in data
+
+    invoice = sessionlocal.query(Invoice).filter(Invoice.lot_id == test_property_and_lot.id).order_by(Invoice.id.desc()).first()
     assert invoice is not None
     assert invoice.status == "pendiente"
 
-    # Limpieza factura creada
-    db_session.delete(invoice)
-    db_session.commit()
+    # Limpiar factura creada
+    sessionlocal.delete(invoice)
+    sessionlocal.commit()
