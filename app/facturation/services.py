@@ -562,6 +562,7 @@ class InvoiceService:
             return JSONResponse(status_code=200, content={"success": True, "data": jsonable_encoder(invoice)})
 
         except Exception as e:
+            
             return JSONResponse(status_code=500, content={"success": False, "data": {"message": str(e)}})
         
     # Assuming each unit of consumption costs 100

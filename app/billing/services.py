@@ -370,7 +370,7 @@ class BillingService:
         result = []
         for row in q.all():
             row_dict = row._asdict()
-            status_id = int(row_dict["payment_status_id"])
+            status_id = str(row_dict["payment_status_id"])
             row_dict["payment_status_name"] = payment_status_map.get(status_id, "Desconocido")
             result.append(row_dict)
 
