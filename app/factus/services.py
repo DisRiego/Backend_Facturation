@@ -50,6 +50,8 @@ class FactusService:
         concepts = self.get_concepts_invoice(invoice.id)
 
         for concept in concepts:
+            if abs(float(concept["price"])) <= 0:
+                continue
             
             item = {
                 "code_reference": concept["code_reference"] or "0000",  # Código del concepto, o uno genérico si no hay
@@ -66,6 +68,7 @@ class FactusService:
                 "withholding_taxes": []
             }
             items.append(item)
+        print(items)
 
         try:
             token = self.obtener_token_factus()

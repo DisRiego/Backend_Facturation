@@ -600,7 +600,8 @@ class InvoiceService:
             # validar si ya existe una facturacion pendiente para ese lote
             lot_id = payment_data["lot_id"]
             validateInvoice = self.db.query(Invoice).filter(Invoice.lot_id == lot_id).first()
-            if validateInvoice:
+
+            if validateInvoice and validateInvoice.status == 'pendiente':
                 return JSONResponse(
                     status_code=400,
                     content={
@@ -608,38 +609,7 @@ class InvoiceService:
                         "data": {"title": "Facturación pendiente", "message": "Ya existe una facturación pendiente para este lote."},
                         },
                     )
-
-            # sql = text("""
-            #     SELECT cm.*
-            #     FROM consumption_measurements cm
-            #     INNER JOIN request r ON r.id = cm.request_id  
-            #     WHERE cm.invoice_id IS NULL
-            #     AND cm.created_at >= :start_date
-            #     AND r.lot_id = :lot_id
-            #     AND cm.created_at <= :end_date
-            # """)
-
-            # result = self.db.execute(sql, {
-            #     "lot_id": invoice.lot_id,
-            #     "start_date": invoice.billing_start_date,
-            #     "end_date": invoice.billing_end_date
-            # })
-
-            # consumptions = result.fetchall()
-
-            # if not consumptions:
-            #     return JSONResponse(
-            #         status_code=400,
-            #         content={
-            #             "success": False,
-            #             "data": {"title": "Facturación pendiente", "message": "No se puede crear la factura porque no existen consumos."},
-            #             },
-            #         )
             
-            user_lots = self.get_user_info_by_lot(payment_data["lot_id"])
-            # 1. Generar código de referencia único
-            reference_code = self.generate_reference_code(self.db)
-
             # Obtener el primer día del mes actual
             first_day_this_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
@@ -648,6 +618,38 @@ class InvoiceService:
 
             # billing_end_date: último día del mes anterior
             billing_end_date = first_day_this_month - timedelta(seconds=1)
+
+            sql = text("""
+                SELECT cm.*
+                FROM consumption_measurements cm
+                INNER JOIN request r ON r.id = cm.request_id  
+                WHERE cm.invoice_id IS NULL
+                AND cm.created_at >= :start_date
+                AND r.lot_id = :lot_id
+                AND cm.created_at <= :end_date
+            """)
+
+            result = self.db.execute(sql, {
+                "lot_id": lot_id,
+                "start_date": billing_start_date,
+                "end_date": billing_end_date
+            })
+
+            consumptions = result.fetchall()
+
+            if not consumptions:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "success": False,
+                        "data": {"title": "Facturación pendiente", "message": "No se puede crear la factura porque no existen consumos."},
+                        },
+                    )
+            
+            user_lots = self.get_user_info_by_lot(payment_data["lot_id"])
+            # 1. Generar código de referencia único
+            reference_code = self.generate_reference_code(self.db)
+
 
             invoice = Invoice(
                 reference_code=reference_code,

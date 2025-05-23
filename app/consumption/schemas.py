@@ -35,8 +35,8 @@ class LotConsumption(BaseModel):
     lot_id: int
     lot_name: str
     total_consumption: float
-    billing_start_date: datetime | None
-    billing_end_date: datetime | None
+    billing_start_date: datetime
+    billing_end_date: datetime
 
 class ProjectedMonthlyAvg(BaseModel):
     projected_monthly_avg: Dict[int, float]  # mes (1-12) -> promedio proyectado
